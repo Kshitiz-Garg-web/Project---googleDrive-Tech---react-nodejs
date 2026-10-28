@@ -1,5 +1,6 @@
 import http from "node:http"
 import fs from "node:fs/promises"
+import mime from 'mime-types'
 
 const server = http.createServer()
 
@@ -13,11 +14,9 @@ server.on("error", (error) => {
 
 server.on("request", async (req, res) => {
   const { actualUrl, reqPath, queryParams, fileName } = getInfoFromUrl(req)
-  console.log('1 reqPath -> ', reqPath)
-  console.log('2 queryParams -> ', queryParams)
-  console.log('3 fileName -> ', fileName)
-  console.log('4 actualUrl -> ', actualUrl)
-  console.log('type of reqPath -> ', typeof (reqPath))
+
+  // global headers for both case - direc open to download
+  res.setHeader("Access-Control-Allow-Origin", "*")
 
   if (req.url === "/") {
     await serveDirectory("", res)
@@ -28,12 +27,20 @@ server.on("request", async (req, res) => {
 
       if (stats.isDirectory()) {
         await serveDirectory(reqPath, res)
-      } else if (queryParams.action === "download") {
-        // console.log('via download', fileName)
-        res.end("download will work soon")
       } else {
-        // console.log('via open', fileName)
+        // set headers for global - 
+        res.setHeader("Content-Type", mime.contentType(fileName))
+        res.setHeader("Content-Length", stats.size)
 
+        if (queryParams.action === "download") {
+          // set headers for download
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; fileName="${fileName}"`
+          )
+        } else if (queryParams.action === "open") {
+          // set headers for open
+        }
         const fileHandler = await fs.open(storagePath)
         streamFile(fileHandler, res)
       }
@@ -59,26 +66,11 @@ function streamFile(fileHandler, res) {
 
 async function serveDirectory(reqPath, res) {
   const storagePath = `./storage/${reqPath}`
-  console.log('5 storagePath -> ', storagePath)
-  const storageList = await fs.readdir(storagePath)
   const urlPath = reqPath === '' ? reqPath : reqPath
-    console.log('6 urlPath -> ', urlPath)
-  let dynamicHtml = ""
-
-  storageList.forEach((item) => {
-    const itemPath = `${urlPath}/${encodeURIComponent(item)}`
-      console.log('itemPath -> ', itemPath)
-    dynamicHtml += `
-    <div>
-     <span>${item}</span>
-     <a href="http://localhost:8081${itemPath}?action=open&happy=true&enjoy=false">open</a>
-     <a href="http://localhost:8081${itemPath}?action=download&happy=true&enjoy=false">download</a>
-    </div>
-    <br>`
-  })
-
-  const htmlBoilerplate = await fs.readFile("./boilerPlate.html", "utf8")
-  res.end(htmlBoilerplate.replace("${dynamicHtml}", dynamicHtml))
+  // const itemPath = `${urlPath}/${encodeURIComponent(item)}`
+  const storageList = await fs.readdir(storagePath)
+  res.setHeader("Content-Type", mime.lookup('json'))
+  res.end(JSON.stringify(storageList))
 }
 
 function getInfoFromUrl(req) {
