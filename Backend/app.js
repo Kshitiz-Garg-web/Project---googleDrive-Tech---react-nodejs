@@ -17,37 +17,56 @@ server.on("request", async (req, res) => {
 
   // global headers for both case - direc open to download
   res.setHeader("Access-Control-Allow-Origin", "*")
+  res.setHeader("Access-Control-Allow-Headers", "*")
 
-  if (req.url === "/") {
-    await serveDirectory("", res)
-  } else {
-    try {
-      const storagePath = `./storage/${reqPath}`
-      const stats = await fs.stat(storagePath)
+  if (req.method === 'GET') {
+    if (req.url === "/") {
+      await serveDirectory("", res)
+    } else {
+      try {
+        const storagePath = `./storage/${reqPath}`
+        const stats = await fs.stat(storagePath)
 
-      if (stats.isDirectory()) {
-        await serveDirectory(reqPath, res)
-      } else {
-        // set headers for global - 
-        res.setHeader("Content-Type", mime.contentType(fileName))
-        res.setHeader("Content-Length", stats.size)
+        if (stats.isDirectory()) {
+          await serveDirectory(reqPath, res)
+        } else {
+          // set headers for global - 
+          res.setHeader("Content-Type", mime.contentType(fileName))
+          res.setHeader("Content-Length", stats.size)
 
-        if (queryParams.action === "download") {
-          // set headers for download
-          res.setHeader(
-            "Content-Disposition",
-            `attachment; fileName="${fileName}"`
-          )
-        } else if (queryParams.action === "open") {
-          // set headers for open
+          if (queryParams.action === "download") {
+            // set headers for download
+            res.setHeader(
+              "Content-Disposition",
+              `attachment; fileName="${fileName}"`
+            )
+          } else if (queryParams.action === "open") {
+            // set headers for open
+          }
+          const fileHandler = await fs.open(storagePath)
+          streamFile(fileHandler, res)
         }
-        const fileHandler = await fs.open(storagePath)
-        streamFile(fileHandler, res)
+      } catch (error) {
+        console.log(`WAY 1 web server error: ${error}`)
+        res.end("page not found")
       }
-    } catch (error) {
-      console.log(`WAY 1 web server error: ${error}`)
-      res.end("page not found")
+
     }
+  }
+  else if (req.method === "OPTIONS") {
+    res.end('all ok')
+  }
+  else if (req.method === 'POST' && req.url === '/') {
+    const { filename } = req.headers
+    const fileHandle = await fs.open(`storage/${filename}`, 'w'
+    )
+    const writeStream = fileHandle.createWriteStream()
+    req.pipe(writeStream)
+    req.on('end', () => { console.log('req is end') })
+    res.end("file uploading is done")
+    req.on('error', (error) => {
+      console.log("server :: app.js :: error ", error)
+    })
   }
 })
 

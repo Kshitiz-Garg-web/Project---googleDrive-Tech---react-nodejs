@@ -1,3 +1,5 @@
-Backend/storage
-Backend/readme.md
-Backend/node_modules
+/Backend/node_modules/
+/Backend/storage/
+/Backend/readme.md
+
+/Frontend/node_modules/
