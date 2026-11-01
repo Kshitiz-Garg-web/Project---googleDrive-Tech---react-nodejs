@@ -1,5 +1,6 @@
 /Backend/node_modules/
-/Backend/storage/
+/Backend/storage/*
+!/Backend/storage/.gitkeep
 /Backend/readme.md
 
 /Frontend/node_modules/

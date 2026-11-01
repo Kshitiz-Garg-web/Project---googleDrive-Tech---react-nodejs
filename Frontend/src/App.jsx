@@ -1,6 +1,7 @@
 import { useState, useId } from 'react'
 import './App.css'
 import { useEffect } from 'react'
+import { useRef } from 'react'
 
 function App() {
   const [error, setError] = useState("")
@@ -9,7 +10,13 @@ function App() {
   const [url, setUrl] = useState('http://192.168.29.22:8081/')
   const [uploading, setUploading] = useState(null)
   const [alert, setAlert] = useState("")
+  const [editMode, setEditMode] = useState(false)
+  const [editInputValue, setEditInputValue] = useState('')
   const id = useId()
+  const [oldFilename, setOldFilename] = useState(null)
+  const [trigerRender, setTrigerRender] = useState(false)
+  const [alertMsg, setAlertMsg] = useState(null)
+
 
   function getFolder(url) {
     fetch(url)
@@ -26,22 +33,23 @@ function App() {
 
   useEffect(() => {
     getFolder(url)
-  }, [])
+    setTrigerRender(false)
+  }, [trigerRender])
 
   async function uploadHandler(e) {
     const files = e.target.files
     const file = files[0]
-    console.log(file)
-    const readStream = await file.stream()
-    console.log(readStream)
+    // console.log(file)
+    // const readStream = await file.stream()
+    // console.log(readStream)
     const xhr = new XMLHttpRequest()
     xhr.open('POST', 'http://localhost:8081/', true)
     xhr.setRequestHeader("filename", `${file.name}`)
     xhr.addEventListener('load', () => {
-      console.log(xhr.response)
+      // console.log(xhr.response)
     })
     xhr.upload.addEventListener("loadstart", (event) => {
-      console.log(`${0} %`)
+      // console.log(`${0} %`)
     });
     xhr.upload.addEventListener("progress", (event) => {
       const totalFileSize = file.size
@@ -56,8 +64,56 @@ function App() {
       setTimeout(() => {
         setAlert("")
       }, 2000);
+      // setTrigerRender(true)
+      getFolder(url)
     })
     xhr.send(file)
+  }
+
+  async function editModeHandler(filename) {
+    console.log(filename.list)
+    setEditMode(true)
+    setOldFilename(filename.list)
+    setEditInputValue(filename.list)
+  }
+  async function editHandler(e) {
+    // console.log(e)
+    console.log(e.target.value)
+    setEditInputValue(e.target.value)
+  }
+  async function serverCallToEdit() {
+    console.log(oldFilename)
+    const res = await fetch('http://localhost:8081/', {
+      method: "PATCH",
+      body: JSON.stringify({
+        oldFilename,
+        "newFileName": editInputValue
+      })
+    }
+    )
+    const result = await res.text()
+    console.log("server res :: ", result)
+    setEditInputValue("")
+    setEditMode(false)
+    setTrigerRender(true)
+  }
+  async function deleteHandler(filename) {
+    await fetch('http://localhost:8081/', {
+      method: "DELETE",
+      body: JSON.stringify({ filename })
+    })
+      .then((res) => res.text())
+      .then((data) => {
+        alertMessag(data)
+      })
+    setTrigerRender(true)
+  }
+
+  function alertMessag(msg) {
+    setAlertMsg(msg)
+    setTimeout(() => {
+      setAlertMsg(null)
+    }, 2000)
   }
 
   if (error) {
@@ -70,12 +126,20 @@ function App() {
       <input onChange={uploadHandler} id="fileInput" type="file" multiple></input>
       {uploading !== null ? `${uploading} % File is Uploading...` : ""}
       {alert !== null ? alert : ""}
+      {alertMsg !== null ? alertMsg : ""}
+      {/* edit mode */}
+      {editMode ? <div>
+        <input value={editInputValue} onInput={editHandler} name='inputfiled' />
+        <button onClick={serverCallToEdit}>sumbit</button>
+      </div> : ""}
       {folderItems.map((list, i) => {
         return <div key={i}>
-          <span>{`${i+1}. `}</span>
+          <span>{`${i + 1}. `}</span>
           <span>{list}</span>&nbsp;
           <a href={`http://192.168.29.22:8081/${encodeURIComponent(list)}?action=open&happy=true&enjoy=false`}>open</a>&nbsp;
-          <a href={`http://192.168.29.22:8081/${encodeURIComponent(list)}?action=download&happy=true&enjoy=false`}>download</a>
+          <a href={`http://192.168.29.22:8081/${encodeURIComponent(list)}?action=download&happy=true&enjoy=false`}>download</a>&nbsp;
+          <button onClick={() => editModeHandler({ list })}>edit</button>&nbsp;
+          <button onClick={() => deleteHandler(list)}>delete</button>
           <br></br>
         </div>
       })}

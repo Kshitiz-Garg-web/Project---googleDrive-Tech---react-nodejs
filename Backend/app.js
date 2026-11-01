@@ -18,6 +18,7 @@ server.on("request", async (req, res) => {
   // global headers for both case - direc open to download
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Headers", "*")
+  res.setHeader("Access-Control-Allow-Methods", "*")
 
   if (req.method === 'GET') {
     if (req.url === "/") {
@@ -62,10 +63,66 @@ server.on("request", async (req, res) => {
     )
     const writeStream = fileHandle.createWriteStream()
     req.pipe(writeStream)
-    req.on('end', () => { console.log('req is end') })
+
+
+
+    // way1
+    // req.on('end', () => { 
+    //   console.log('req is end') 
+    //   writeStream.on('finish', () => {
+    //     writeStream.close()
+    //     console.log('writeStream is closed')
+    //   })
+    // })
+
+    // way2
+    // req.on('end', () => {
+    //   console.log('req is end')
+    //   writeStream.end(() => {
+    //     console.log('writeStream is closed')
+    //   })
+    // })
+
+    // way3
+    // writeStream.end();
+
+    // writeStream.on("finish", () => {
+    //   res.end("File uploaded successfully");
+    // });
+
     res.end("file uploading is done")
     req.on('error', (error) => {
       console.log("server :: app.js :: error ", error)
+    })
+  }
+  else if (req.method === 'PATCH' && req.url === '/') {
+    console.log('put time-----------------')
+    let chunkCollectore = []
+    req.on('data', (chunk) => {
+      chunkCollectore.push(chunk)
+    })
+    req.on('end', async () => {
+      let body = JSON.parse(Buffer.concat(chunkCollectore).toString())
+      console.log(body)
+      await fs.rename(
+        `./storage/${body.oldFilename}`,
+        `./storage/${body.newFileName}`
+      );
+      res.end('got it')
+
+    })
+  }
+  else if (req.method === 'DELETE' && req.url === '/') {
+    const chunkCollectore = []
+    req.on('data', (chunk) => {
+      chunkCollectore.push(chunk)
+    })
+    req.on("end", async () => {
+      const { filename } = JSON.parse(Buffer.concat(chunkCollectore).toString())
+      console.log(filename)
+      await fs.rm(`./storage/${filename}`, { recursive: true })
+      console.log('200ok done')
+      res.end("file is deleted successfully")
     })
   }
 })
@@ -87,7 +144,8 @@ async function serveDirectory(reqPath, res) {
   const storagePath = `./storage/${reqPath}`
   const urlPath = reqPath === '' ? reqPath : reqPath
   // const itemPath = `${urlPath}/${encodeURIComponent(item)}`
-  const storageList = await fs.readdir(storagePath)
+  const arr = await fs.readdir(storagePath)
+  const storageList = arr.filter((item) => item !== '.gitkeep')
   res.setHeader("Content-Type", mime.lookup('json'))
   res.end(JSON.stringify(storageList))
 }
